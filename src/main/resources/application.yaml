@@ -1,3 +1,11 @@
 spring:
   application:
     name: bullsync
+  datasource:
+    url: jdbc:postgresql://localhost:5433/bullsync
+    username: bullsync_user
+    password: bullsync_pass
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true

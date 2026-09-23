@@ -1,13 +1,21 @@
 package com.fco.bullsync.batch;
 
+import com.fco.bullsync.model.Customer;
+import com.fco.bullsync.repository.CustomerRepository;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.infrastructure.item.ItemProcessor;
+import org.springframework.batch.infrastructure.item.data.RepositoryItemWriter;
+import org.springframework.batch.infrastructure.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
+import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.core.io.ClassPathResource;
 
 
 @Configuration
@@ -18,15 +26,54 @@ public class CsvBatchConfig {
                 .start(csvImportStep)
                 .build();
     }
+    @Bean
+    public ItemProcessor<Customer, Customer> customerItemProcessor() {
+        return customer -> {
+            if (customer.getMail() == null || customer.getMail().isBlank()) {
+                return null;
+            }
+            return customer;
+        };
+    }
+
+
+    @Bean
+    public FlatFileItemReader<Customer> customerItemReader() {
+        return new FlatFileItemReaderBuilder<Customer>()
+                .name("customerItemReader")
+                .resource(new ClassPathResource("test-data.csv"))
+                .delimited()
+                .names("id", "nombre", "mail", "telefono")
+                .fieldSetMapper(new BeanWrapperFieldSetMapper<>() {{
+                    setTargetType(Customer.class);
+                }})
+                .build();
+    }
+
 
     @Bean
     public Step csvImportStep(JobRepository jobRepository,
-                              PlatformTransactionManager transactionManager) {
+                              PlatformTransactionManager transactionManager,
+                              FlatFileItemReader<Customer> customerItemReader,
+                              ItemProcessor<Customer, Customer> customerItemProcessor,
+                              RepositoryItemWriter<Customer> customerItemWriter) {
         return new StepBuilder("csvImportStep", jobRepository)
-                .tasklet((contribution, chunkContext) -> {
-                    System.out.println("Step ejecutado (aún sin lógica real)");
-                    return org.springframework.batch.infrastructure.repeat.RepeatStatus.FINISHED;
-                }, transactionManager)
+                .<Customer, Customer>chunk(10)
+                .transactionManager(transactionManager)
+                .reader(customerItemReader)
+                .processor(customerItemProcessor)
+                .writer(customerItemWriter)
                 .build();
     }
+
+
+
+
+        @Bean
+    public RepositoryItemWriter<Customer> customerItemWriter(CustomerRepository customerRepository) {
+        RepositoryItemWriter<Customer> writer = new RepositoryItemWriter<Customer>(customerRepository);
+        writer.setMethodName("save");
+        return writer;
+    }
+
 }
