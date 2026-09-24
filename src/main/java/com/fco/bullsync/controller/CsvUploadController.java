@@ -1,6 +1,5 @@
 package com.fco.bullsync.controller;
 import com.fco.bullsync.model.CsvJob;
-import com.fco.bullsync.repository.CsvJobRepository;
 import com.fco.bullsync.service.CsvJobService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,7 +22,7 @@ public class CsvUploadController {
 
 
     @PostMapping("/upload")
-    public CsvJob uploadCsv(@RequestParam("file") MultipartFile file) {
+    public CsvJob uploadCsv(@RequestParam("file") MultipartFile file) throws Exception {
 
         return csvJobService.createJob(file);
     }
