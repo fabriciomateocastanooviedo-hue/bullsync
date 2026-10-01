@@ -1,0 +1,107 @@
+# BulkSync
+
+API REST en **Spring Boot 4** para la importación masiva de clientes desde archivos CSV.
+
+Procesamiento asíncrono por lotes con **Spring Batch**, validación de datos y autenticación **JWT** stateless.
+
+## Stack técnico
+
+- **Java 17**
+- **Spring Boot 4.1.1**
+- **Spring Batch 6.0.5** — procesamiento del CSV por chunks (lectura, validación y escritura en lotes, no fila a fila)
+- **Spring Security + JWT** — autenticación stateless con `jjwt`
+- **Spring Data JPA + Hibernate** — persistencia
+- **PostgreSQL** (vía Docker Compose)
+- **Maven**
+
+## ¿Qué hace?
+
+1. Un usuario autenticado sube un CSV con datos de clientes (`nombre`, `mail`, `telefono`)
+2. El archivo se guarda y se lanza un `Job` de Spring Batch que lo procesa en segundo plano
+3. El `ItemProcessor` filtra filas inválidas (por ejemplo, sin email) antes de escribirlas
+4. Los clientes válidos se guardan en base de datos; se puede consultar el estado del job por su id
+
+## Arquitectura
+
+
+- `controller/` — endpoints HTTP, sin lógica de negocio
+- `service/` — lógica de negocio, orquesta el lanzamiento del batch
+- `batch/` — configuración de Spring Batch (reader, processor, writer, step, job)
+- `security/` — filtro JWT, configuración de Spring Security, generación/validación de tokens
+- `model/` — entidades JPA (`User`, `Customer`, `CsvJob`)
+- `repository/` — acceso a datos (Spring Data JPA)
+- `dto/` — objetos de entrada/salida para no exponer las entidades directamente
+
+## Cómo levantarlo en local
+
+1. Clona el repo y levanta la base de datos:
+```bash
+   docker compose up -d
+```
+2. Arranca la aplicación (desde IntelliJ o con Maven):
+```bash
+   ./mvnw spring-boot:run
+```
+3. La API queda disponible en `http://localhost:8080`
+
+Los secrets (`jwt.secret`, credenciales de la base de datos) se leen de variables de entorno con valores por defecto para desarrollo local — ver `application.yml`.
+
+## Endpoints principales
+
+### Autenticación
+
+**Registro**
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "username": "usuario",
+  "password": "contraseña123"
+}
+```
+
+**Login**
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "username": "usuario",
+  "password": "contraseña123"
+}
+```
+
+Ambos devuelven:
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+### Subida de CSV (requiere token)
+
+```http
+POST /api/jobs/upload
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+file: clientes.csv
+```
+
+### Consultar estado de un job
+
+```http
+GET /api/jobs/{id}
+Authorization: Bearer <token>
+```
+
+## Seguridad
+
+Todas las rutas excepto `/api/auth/**` requieren un token JWT válido en el header `Authorization: Bearer <token>`. La sesión es stateless (sin estado en servidor) — cada petición se autentica de forma independiente con su propio token.
+
+## Próximos pasos
+
+- Asociar cada `CsvJob` al usuario que lo subió
+- Tests de integración
+- Progreso en tiempo real del procesamiento batch
