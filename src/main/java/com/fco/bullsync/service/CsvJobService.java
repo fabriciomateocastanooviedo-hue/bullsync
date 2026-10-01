@@ -36,7 +36,7 @@ public class CsvJobService {
             Files.createDirectories(uploadDir);
         }
         Path filePath = uploadDir.resolve(Objects.requireNonNull(file.getOriginalFilename()));
-        file.transferTo(filePath.toFile());
+        file.transferTo(filePath.toAbsolutePath().toFile());
 
         CsvJob job = new CsvJob();
         job.setFileName(file.getOriginalFilename());
