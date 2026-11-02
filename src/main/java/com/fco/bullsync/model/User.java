@@ -1,5 +1,6 @@
 package com.fco.bullsync.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -11,6 +12,7 @@ import java.util.List;
 @Table(name = "users")
 @Data
 public class User {
+    @JsonIgnore
     @OneToMany(mappedBy = "username")
     private List<CsvJob> jobs;
 

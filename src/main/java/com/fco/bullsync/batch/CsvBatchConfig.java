@@ -24,12 +24,7 @@ import org.springframework.core.io.ClassPathResource;
 
 @Configuration
 public class CsvBatchConfig {
-    @Bean
-    public Job csvImportJob(JobRepository jobRepository, Step csvImportStep) {
-        return new JobBuilder("csvImportJob", jobRepository)
-                .start(csvImportStep)
-                .build();
-    }
+
     @Bean
     public ItemProcessor<Customer, Customer> customerItemProcessor() {
         return customer -> {
@@ -80,6 +75,13 @@ public class CsvBatchConfig {
         RepositoryItemWriter<Customer> writer = new RepositoryItemWriter<Customer>(customerRepository);
         writer.setMethodName("save");
         return writer;
+    }
+    @Bean
+    public Job csvImportJob(JobRepository jobRepository, Step csvImportStep, CsvJobListener csvJobListener) {
+        return new JobBuilder("csvImportJob", jobRepository)
+                .listener(csvJobListener)
+                .start(csvImportStep)
+                .build();
     }
 
 }

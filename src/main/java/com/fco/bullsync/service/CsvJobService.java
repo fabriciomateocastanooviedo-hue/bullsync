@@ -1,10 +1,13 @@
 package com.fco.bullsync.service;
 
 import com.fco.bullsync.model.CsvJob;
+import com.fco.bullsync.model.JobStatus;
 import com.fco.bullsync.repository.CsvJobRepository;
+import com.fco.bullsync.repository.UserRepository;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobOperator;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,12 +24,13 @@ public class CsvJobService {
     private final CsvJobRepository csvJobRepository;
     private final JobOperator jobOperator;
     private final Job csvImportJob;
+    private final UserRepository userRepository;
 
-    public CsvJobService(CsvJobRepository csvJobRepository1, JobOperator jobOperator, Job csvInportJob) {
+    public CsvJobService(CsvJobRepository csvJobRepository1, JobOperator jobOperator, Job csvInportJob, UserRepository userRepository) {
         this.csvJobRepository = csvJobRepository1;
         this.jobOperator = jobOperator;
         this.csvImportJob = csvInportJob;
-
+        this.userRepository = userRepository;
     }
 
     public CsvJob createJob(MultipartFile file) throws Exception {
@@ -40,11 +44,13 @@ public class CsvJobService {
 
         CsvJob job = new CsvJob();
         job.setFileName(file.getOriginalFilename());
-        job.setStatus("PENDING");
+        job.setStatus(JobStatus.PENDING);
         job.setCreatedAt(LocalDateTime.now());
         job.setTotalRows(0);
         job.setProcessedRows(0);
         job.setErrorRows(0);
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        userRepository.findByUsername(username).ifPresent(job::setUsername);
         csvJobRepository.save(job);
 
         var jobParameters = new JobParametersBuilder()
