@@ -2,7 +2,7 @@
 
 API REST en **Spring Boot 4** para la importación masiva de clientes desde archivos CSV.
 
-Procesamiento asíncrono por lotes con **Spring Batch**, validación de datos y autenticación **JWT** stateless.
+Procesamiento por lotes con **Spring Batch**, validación de datos y autenticación **JWT** stateless.
 
 ## Stack técnico
 
@@ -17,16 +17,20 @@ Procesamiento asíncrono por lotes con **Spring Batch**, validación de datos y 
 ## ¿Qué hace?
 
 1. Un usuario autenticado sube un CSV con datos de clientes (`nombre`, `mail`, `telefono`).
-2. El archivo se guarda y se lanza un `Job` de Spring Batch que lo procesa en segundo plano.
+2. El archivo se guarda y se lanza un `Job` de Spring Batch que lo procesa.
 3. El `ItemProcessor` filtra las filas inválidas (por ejemplo, sin email) antes de escribirlas.
-4. Los clientes válidos se guardan en base de datos y se puede consultar el estado del job por su id.
+4. Los clientes válidos se guardan en base de datos.
+5. Al terminar, un listener actualiza el estado del job (`COMPLETED` o `FAILED`) y los contadores de filas leídas, guardadas y descartadas.
+6. Cada job queda asociado al usuario que lo subió y se puede consultar por su id.
 
 ## Formato del CSV
 
+Sin cabecera, tres columnas (`nombre`, `mail`, `telefono`):
+
 ```csv
-nombre,mail,telefono
-Ana García,ana@example.com,600111222
-Luis Pérez,,600333444
+Juan Perez,juan.perez@example.com,600111222
+Luis Ruiz,,600555666
+Marta Gomez,marta.gomez@example.com,600777888
 ```
 
 La segunda fila se descarta porque no tiene email.
@@ -37,9 +41,9 @@ La segunda fila se descarta porque no tiene email.
 com.fco.bullsync
 ├── controller   → endpoints HTTP, sin lógica de negocio
 ├── service      → lógica de negocio, orquesta el lanzamiento del batch
-├── batch        → configuración de Spring Batch (reader, processor, writer, step, job)
+├── batch        → configuración de Spring Batch (reader, processor, writer, step, job, listener)
 ├── security     → filtro JWT, configuración de Spring Security, generación y validación de tokens
-├── model        → entidades JPA (User, Customer, CsvJob)
+├── model        → entidades JPA (User, Customer, CsvJob) y enum JobStatus
 ├── repository   → acceso a datos (Spring Data JPA)
 └── dto          → objetos de entrada y salida
 ```
@@ -109,7 +113,7 @@ Ambos devuelven:
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiJ9..."
+  "token": "eyJhbGciOiJIUzUxMiJ9..."
 }
 ```
 
@@ -127,14 +131,17 @@ Respuesta:
 
 ```json
 {
-    "createdAt": "2026-10-26T10:48:05.4094909",
-    "errorRows": 0,
-    "fileName": "test-data.csv",
-    "id": 3,
-    "processedRows": 0,
-    "status": "PENDING",
-    "totalRows": 0,
-    "username": null
+    "createdAt": "2026-11-02T13:37:32.0886876",
+    "errorRows": 1,
+    "fileName": "clientes-ok.csv",
+    "id": 10,
+    "processedRows": 4,
+    "status": "COMPLETED",
+    "totalRows": 5,
+    "username": {
+        "id": 10,
+        "username": "mate4"
+    }
 }
 ```
 
@@ -145,20 +152,7 @@ GET /api/jobs/{id}
 Authorization: Bearer <token>
 ```
 
-Respuesta:
-
-```json
-{
-    "createdAt": "2026-10-26T10:48:05.409491",
-    "errorRows": 0,
-    "fileName": "test-data.csv",
-    "id": 3,
-    "processedRows": 0,
-    "status": "PENDING",
-    "totalRows": 0,
-    "username": null
-}
-```
+Devuelve el mismo formato que la subida, con el estado actual del job.
 
 ## Seguridad
 
@@ -168,14 +162,15 @@ Todas las rutas excepto `/api/auth/**` requieren un token JWT válido en el head
 
 - **Procesamiento por chunks:** el CSV se lee, valida y escribe en lotes y no fila a fila, lo que reduce las operaciones contra la base de datos con archivos grandes.
 - **JWT stateless:** no se guarda sesión en el servidor, así la API no depende de estado compartido.
-- **DTOs:** las entidades no se exponen directamente en la API, solo los objetos de entrada y salida.
+- **Listener de job:** el estado y los contadores del `CsvJob` se actualizan al terminar el batch, a partir de los contadores del step, sin que el controller tenga que conocer el resultado.
 - **Secretos externalizados:** credenciales y clave JWT se leen de variables de entorno con valores por defecto solo para desarrollo.
 
 ## Próximos pasos
 
-- Asociar cada `CsvJob` al usuario que lo subió
 - Tests de integración
-- Progreso en tiempo real del procesamiento batch
+- Devolver DTOs en lugar de entidades JPA en las respuestas
+- Validación de los datos de registro y login
+- Ejecución asíncrona del job y progreso en tiempo real
 
 ## Autor
 
